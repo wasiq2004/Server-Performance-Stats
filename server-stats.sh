@@ -1,18 +1,11 @@
-#!/usr/bin/env bash
-# server-stats.sh - Analyse basic server performance stats on any Linux server.
-# Usage: chmod +x server-stats.sh && ./server-stats.sh
-
 set -u
 
-# ---------- helpers ----------
 print_header() {
     echo
     echo "=================================================="
     echo " $1"
     echo "=================================================="
 }
-
-# Pretty-print bytes (KB input from /proc/meminfo or `df`)
 human_kb() {
     awk -v kb="$1" 'BEGIN{
         split("KB MB GB TB PB", u);
@@ -22,11 +15,9 @@ human_kb() {
     }'
 }
 
-# ---------- system info ----------
 print_header "SYSTEM INFORMATION"
 echo "Hostname     : $(hostname)"
 if [ -f /etc/os-release ]; then
-    # shellcheck disable=SC1091
     . /etc/os-release
     echo "OS           : ${PRETTY_NAME:-$NAME $VERSION}"
 fi
@@ -36,9 +27,7 @@ echo "Date         : $(date)"
 echo "Uptime       :$(uptime -p | sed 's/^up//')"
 echo "Load Average :$(uptime | awk -F'load average:' '{print $2}')"
 
-# ---------- CPU usage ----------
 print_header "CPU USAGE"
-# Sample /proc/stat twice for an accurate snapshot
 read -r _ u1 n1 s1 i1 w1 irq1 sirq1 st1 _ < /proc/stat
 sleep 1
 read -r _ u2 n2 s2 i2 w2 irq2 sirq2 st2 _ < /proc/stat
@@ -60,7 +49,6 @@ fi
 echo "CPU cores    : $(nproc)"
 echo "CPU usage    : ${cpu_usage}%  (idle: $(awk -v t="$totald" -v i="$idled" 'BEGIN{printf "%.2f", i*100/t}')%)"
 
-# ---------- Memory usage ----------
 print_header "MEMORY USAGE"
 mem_total=$(awk '/^MemTotal:/{print $2}' /proc/meminfo)
 mem_avail=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)
@@ -72,7 +60,6 @@ printf "Total : %s\n" "$(human_kb "$mem_total")"
 printf "Used  : %s (%s%%)\n" "$(human_kb "$mem_used")" "$mem_used_pct"
 printf "Free  : %s (%s%%)\n" "$(human_kb "$mem_avail")" "$mem_free_pct"
 
-# Swap
 swap_total=$(awk '/^SwapTotal:/{print $2}' /proc/meminfo)
 swap_free=$(awk '/^SwapFree:/{print $2}' /proc/meminfo)
 if [ "${swap_total:-0}" -gt 0 ]; then
@@ -82,9 +69,7 @@ if [ "${swap_total:-0}" -gt 0 ]; then
         "$(human_kb "$swap_used")" "$(human_kb "$swap_total")" "$swap_used_pct"
 fi
 
-# ---------- Disk usage ----------
 print_header "DISK USAGE (local filesystems)"
-# Aggregate across local filesystems
 df -PT -x tmpfs -x devtmpfs -x squashfs -x overlay 2>/dev/null | \
 awk '
     function hr(x,    i,arr){
@@ -107,19 +92,16 @@ awk '
         }
     }'
 
-# ---------- Top processes by CPU ----------
 print_header "TOP 5 PROCESSES BY CPU"
 ps -eo pid,user,comm,%cpu,%mem --sort=-%cpu | head -n 6 | \
     awk 'NR==1{printf "%-8s %-12s %-25s %8s %8s\n", $1,$2,$3,$4,$5; next}
          {printf "%-8s %-12s %-25s %8s %8s\n", $1,$2,$3,$4,$5}'
 
-# ---------- Top processes by Memory ----------
 print_header "TOP 5 PROCESSES BY MEMORY"
 ps -eo pid,user,comm,%cpu,%mem --sort=-%mem | head -n 6 | \
     awk 'NR==1{printf "%-8s %-12s %-25s %8s %8s\n", $1,$2,$3,$4,$5; next}
          {printf "%-8s %-12s %-25s %8s %8s\n", $1,$2,$3,$4,$5}'
 
-# ---------- Stretch: users & logins ----------
 print_header "USERS & LOGIN ACTIVITY"
 echo "Logged-in users ($(who | wc -l)):"
 who || true
@@ -137,7 +119,6 @@ if command -v lastb >/dev/null 2>&1; then
     fi
 fi
 
-# ---------- Stretch: network listeners count ----------
 if command -v ss >/dev/null 2>&1; then
     print_header "NETWORK"
     echo "TCP listening sockets : $(ss -tln 2>/dev/null | tail -n +2 | wc -l)"
